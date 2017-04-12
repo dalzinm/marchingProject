@@ -1,0 +1,495 @@
+<!DOCTYPE html>
+<html>
+    <head>
+        <title>Newest</title>
+        <!-- Latest compiled and minified CSS -->
+        <link rel="stylesheet" href="https://maxcdn.bootstrapcdn.com/bootstrap/3.3.7/css/bootstrap.min.css">
+
+        <!-- jQuery library -->
+        <script src="https://ajax.googleapis.com/ajax/libs/jquery/3.1.1/jquery.min.js"></script>
+
+        <!-- Latest compiled JavaScript -->
+        <script src="https://maxcdn.bootstrapcdn.com/bootstrap/3.3.7/js/bootstrap.min.js"></script>
+        <style>
+            p
+            {
+                display: inline
+            }
+            
+            #bootstrap-overrides .button
+            {
+                margin: 0px;
+                height: 40px;
+                font-size: 17px;
+            }
+        
+            #bootstrap-overrides .buttonHighlight
+            {
+                color: #fff;
+                background-color: #269abc;
+                border-color: #1b6d85;
+            }
+            #bootstrap-overrides #buttonCol
+            {
+                padding: 0px;
+                overflow-y: auto;
+                position: absolute;
+                /*top: 0; right: 0; bottom: 0; left: 0; go here*/
+            }
+        
+            #bootstrap-overrides #buttonGroup
+            {
+                width: 100%;
+            }
+            
+            #bootstrap-overrides #menubar
+            {
+                height: 73px;
+                font-size: 50px;
+                background-color: #f4b942;
+                width: inherit;
+                color: white;
+                font-family: cursive;
+            }
+            
+        </style>
+    </head>
+    <body id="bootstrap-overrides">
+        <script src="https://cdnjs.cloudflare.com/ajax/libs/wavesurfer.js/1.2.3/wavesurfer.min.js"></script>
+        <div class="container-fluid">
+            <div class="row" id="menubar">
+                <p>Menu Bar</p>
+            </div>
+            <div class="row">
+                <div class="col-sm-9 col-sm-push-3">
+                    <div class="row" id="everythingElse">
+                        <div id="waveform"></div>
+                        <button id="play" onClick="play()">Play</button>
+                        <button id="pause" onClick="pause()">Pause</button>
+                        <p id="timeDisplay"></p>
+                        <p>mp3 File:</p>
+                        <input type="file" id="audioFile"/>
+                        <p>Sets File:</p>
+                        <input type="file" id="setsFile"/>
+                        <button id="save" title="Add a new set to the audio.">Save Set</button>
+                        <button title="Delete the latest set." onClick="deleteSet()">Delete Last Set</button>
+                        <button id="download">Download Sets</button>
+                        <audio id="cowbell">
+                            <source src="G:\SeniorProjectDevelopment\Audio\cowbell.mp3" type="audio/mpeg">
+                        </audio>
+                        <button id="tap" onClick="tap()">Tap Tempo</button>
+                        <p>Tempo:</p>
+                        <input style="width: 30px" id="tempo" type="text" name="tempo">
+                        <p>Time Signature:</p>
+                        <input style="width: 30px" id="timeSig" type="text" name="timeSig">
+                        <input id="loop" type="checkbox" name="loop">Loop<br>
+                    </div>
+                </div>
+                <div class="col-sm-3 col-sm-pull-9" id="buttonCol">
+                    <div class="row">
+                        <div class="btn-group-vertical" id="buttonGroup">
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+        
+        <script>
+            
+            var wavesurfer = WaveSurfer.create({
+                container: '#waveform',
+                waveColor: 'darkorange',
+                progressColor: '#269abc',
+                height: 300,
+                fillParent: true, //will fill if small enough
+                scrollParent: true, //will scroll if too big
+                minPxPerSec: 50,
+                maxCanvasWidth: 100
+                //backend: 'MediaElement'
+            });
+            
+            //LOADING A NEW FILE INTO THE AUDIO ELEMENT
+            
+            //check if the browser fully supports the file APIs
+            if (!(window.File && window.FileReader && window.FileList && window.Blob))
+            {
+                alert("The File APIs are not fully supported in this browser.");
+            }
+            //check if browser supports blob urls
+            var blob = window.URL || window.webkitURL;
+            if (!blob)
+            {
+                alert("Your browser does not support Blob URLs.");
+            }
+            var input = document.getElementById("audioFile");
+            input.onclick = function ()
+            {
+                wavesurfer.pause();
+            };
+            input.onchange = function ()
+            {
+                var file = input.files[0];
+                var fileURL = blob.createObjectURL(file);
+                wavesurfer.load(fileURL);
+                window.setInterval(updateTime, 100); //maybe change location later
+            };
+            
+            //WAVEFORM BUTTONS
+            function play()
+            {
+                wavesurfer.play();
+            }
+            
+            function pause()
+            {
+                wavesurfer.pause();
+            }
+            
+            
+            //__________________________________________________________________
+            //ADDING A NEW SET TO THE LIST (WITH PROPER TIMES AND TEMPOS)
+            
+            var buttons=[];
+            var count=0;
+            
+            var save = document.getElementById("save");
+            
+            var inTemp = document.getElementById("tempo");
+            var inSig = document.getElementById("timeSig");
+            var cowbell = document.getElementById("cowbell");
+            //maybe move loopCheck declaration
+            var loopCheckBox = document.getElementById("loop");
+            var metcount = 0;
+            var metLoop;
+            var timeSig = 0;
+            var mdown = false;
+            var startingIndex;
+            var startButton = 0;
+            var endButton = 0;
+            
+            save.onclick = function ()
+            {
+                stamp(wavesurfer.getCurrentTime(), inTemp.value, inSig.value);
+            };
+            
+            function stamp(t, bpm, ts)
+            {
+                var b = document.createElement("BUTTON");
+                b.index = count;
+                b.id = "button"+count;
+                b.highlight = false;
+                b.time = t;
+                b.tempo = bpm;
+                b.timeSig = ts;
+                b.className = ("btn btn-info btn-block button");
+                var txt = document.createTextNode("Set "+(count+1)+" ("+formatTime(b.time)+")");
+                b.appendChild(txt);
+                buttons.push(b);
+                $(document).ready(function(){
+                    $("#buttonGroup").append(b);
+                });
+                //document.body.appendChild(buttons[count]);
+                count=count+1;
+            //__________________________________________________________________
+            //DEFINING THE BUTTON SELECTION AND HIGHLIGHTING   
+                
+                
+                b.onmousedown = function()
+                {
+                    for(var i=0; i<buttons.length; i++)
+                    {
+                        $("#"+buttons[i].id).removeClass("buttonHighlight");
+                        buttons[i].highlight = false;
+                    }
+                    mdown = true;
+                    $(this).addClass("buttonHighlight");
+                    this.highlight = true;
+                    startingIndex = this.index;
+                    startButton = this;
+                };
+                
+                b.onmouseover = function()
+                {
+                    if(mdown===true)
+                    {
+                        if(this.highlight === true)
+                        {
+                            //alert(this.index);
+                            //alert(startingIndex);
+                            if(this.index >= startingIndex &&
+                                    buttons[this.index+1].highlight === true)
+                            {
+                                $("#"+buttons[this.index+1].id).removeClass("buttonHighlight");
+                                buttons[this.index+1].highlight = false;
+                            }
+                            else if(this.index <= startingIndex 
+                                    && buttons[this.index-1].highlight === true)
+                            {
+                                $("#"+buttons[this.index-1].id).removeClass("buttonHighlight");
+                                buttons[this.index-1].highlight = false;;
+                            }
+                            //figure out problem later
+                        }
+                        else
+                        {
+                            if(this.index===0)
+                            {
+                                if(buttons[this.index+1].highlight === true)
+                                {
+                                    $(this).addClass("buttonHighlight");
+                                    this.highlight = true;
+                                }
+                            }
+                            else if(this.index===buttons.length-1)
+                            {
+                                if(buttons[this.index-1].highlight === true)
+                                {
+                                    $(this).addClass("buttonHighlight");
+                                    this.highlight = true;
+                                }
+                            }
+                            else
+                            {
+                                if(buttons[this.index-1].highlight === true ||
+                                    buttons[this.index+1].highlight === true)
+                                {
+                                    $(this).addClass("buttonHighlight");
+                                    this.highlight = true;
+                                }
+                            }
+                        }
+                    }
+                };
+                var endTime;
+                
+                b.onmouseup = function()
+                {
+                    mdown = false;
+                    endButton = this;
+                    if(startButton.time>endButton.time)
+                    {
+                        var tempButton=startButton;
+                        startButton=endButton;
+                        endButton=tempButton;
+                    }
+                    if(endButton.index===buttons.length-1)
+                    {
+                        endTime=wavesurfer.getDuration();
+                    }
+                    else
+                    {
+                        endTime=buttons[endButton.index+1].time;
+                    }
+                    //alert(endTime);
+                    playStamp(startButton.time, startButton.tempo, startButton.timeSig, endTime);
+                };
+                
+            }
+            //__________________________________________________________________
+            //TAP IN TEMPO
+            
+            var tapTimes=[];
+            var lastTime=0;
+            var currentTime;
+            var diff;
+            
+            function tap()
+            {
+                if (lastTime===0)
+                {
+                    lastTime = new Date().getTime();
+                }
+                else
+                {
+                    currentTime = new Date().getTime();
+                    diff = currentTime - lastTime;
+                    if(diff>5000)
+                    {
+                        tapTimes = [];
+                    }
+                    else
+                    {
+                        tapTimes.push(diff);
+                        if(tapTimes.length > 10)
+                        {
+                            tapTimes.shift();
+                        }
+                        inTemp.value = Math.round(60000/getAverage(tapTimes));
+                    }
+                    lastTime = currentTime;
+                }
+            }
+            
+            function getAverage(nums)
+            {
+                var sum=0;
+                for(var i=0; i<nums.length; i++)
+                {
+                    sum=sum+nums[i];
+                }
+                return (sum/nums.length);
+            }
+            
+            
+            //__________________________________________________________________
+            //HELPER METHODS
+            
+            function getTimeString()
+            {
+                var timeString="";
+                for(i=0; i<buttons.length; i++)
+                {
+                    timeString+=buttons[i].time+" "+buttons[i].tempo+" "+buttons[i].timeSig+" ";
+                }
+                return timeString;
+            }
+            
+            function formatTime(ut)
+            {
+                var min = Math.floor(ut/60);
+                var sec = Math.floor(ut%60);
+                if(sec<10)
+                {
+                    return min+":0"+sec;
+                }
+                else
+                {
+                    return min+":"+sec;
+                }
+            }
+            
+            function updateTime()
+            {
+                document.getElementById("timeDisplay").innerHTML = formatTime(wavesurfer.getCurrentTime());
+            }
+            
+            //__________________________________________________________________
+            //PLAYING FROM A SPECIFIC SET
+            var checkLoop;
+            var endT;
+            var startT;
+            var startTemp;
+            function playStamp(t, bpm, ts, et)
+            {   
+                wavesurfer.pause();
+                var progress=t/wavesurfer.getDuration();
+                wavesurfer.seekTo(progress);
+                var interval = 60000/bpm;
+                startT = t;
+                timeSig = ts;
+                endT = et;
+                startTemp = bpm;
+                for(var i=0; i<buttons.length; i++)
+                {
+                    buttons[i].disabled = true;
+                }
+                metLoop = window.setInterval(playLoop, interval);
+            }
+            
+            function playLoop()
+            {
+                if(metcount<timeSig)
+                {
+                    cowbell.currentTime = 0;
+                    metcount++;
+                    cowbell.play();
+                }
+                else
+                {
+                    window.clearInterval(metLoop);
+                    metcount=0;
+                    for(var i=0; i<buttons.length; i++)
+                    {
+                        buttons[i].disabled = false;
+                    }
+                    wavesurfer.play();
+                    checkLoop = window.setInterval(checkEnd, 100); //Might change the interval
+                }
+            }
+            
+            function checkEnd()
+            {
+                if(wavesurfer.getCurrentTime()>=endT)
+                {
+                    wavesurfer.pause();
+                    window.clearInterval(checkLoop);
+                    if(loopCheckBox.checked === true)
+                    {
+                        playStamp(startT, startTemp, timeSig, endT);
+                    }
+                }
+            }
+            
+            
+            function deleteSet()
+            {
+                if (count>0)
+                {
+                    count=count-1;
+                    buttons[count].parentNode.removeChild(buttons[count]);
+                    buttons.pop();
+                }
+            }
+            //__________________________________________________________________
+            //DOWNLOADING INFORMATION INTO A NEW TEXT FILE
+            
+            var download = document.getElementById('download');
+            var textbox = document.getElementById('textbox');
+
+            download.addEventListener('click', function ()
+            {
+                var link = document.createElement('a');
+                link.setAttribute('download', 'sets.txt');
+                link.href = makeURL(getTimeString());
+                document.body.appendChild(link);
+
+                // wait for the link to be added to the document
+                window.requestAnimationFrame(function ()
+                {
+                   var event = new MouseEvent('click');
+                   link.dispatchEvent(event);
+                   document.body.removeChild(link);
+                });
+            }, false);
+            
+            var textFile = null;
+            
+            function makeURL(text)
+            {
+                var data = new Blob([text], {type: 'text/plain'});
+
+                // If we are replacing a previously generated file we need to
+                // manually revoke the object URL to avoid memory leaks.
+                if (textFile !== null)
+                {
+                    window.URL.revokeObjectURL(textFile);
+                }
+                textFile = window.URL.createObjectURL(data);
+
+                // returns a URL you can use as a href
+                return textFile;
+            };
+            //__________________________________________________________________
+            //UPLOADING A NEW TEXT FILE FOR SETS
+            
+            document.getElementById('setsFile').onchange = function()
+            {
+                while(count>0)
+                {
+                    deleteSet();
+                }
+                var file = this.files[0];
+                var reader = new FileReader();
+                reader.onload = function(progressEvent)
+                {
+                    var nums=this.result.split(' ');
+                    for(var i=0; i<nums.length-1; i=i+3)
+                    {
+                        stamp(nums[i], nums[i+1], nums[i+2]);
+                    }
+                };
+                reader.readAsText(file);
+            };
+        </script>
+    </body>
+</html>
